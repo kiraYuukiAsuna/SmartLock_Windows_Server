@@ -1,0 +1,2 @@
+D:\CodeData\VisualStudio\RC522Server\x64\Debug\RC522Server.exe
+D:\CodeData\VisualStudio\RC522Server\x64\Debug\RC522Server.pdb
