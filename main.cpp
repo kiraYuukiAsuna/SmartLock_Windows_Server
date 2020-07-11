@@ -36,16 +36,13 @@ SOCKET listenSocket = INVALID_SOCKET;
 addrinfo* result = NULL;
 addrinfo hints;
 
-int iResult;
-int iSendResult;
-
-
 /************************************************************
 *FunctionName:CloseServerSocket
 *Function:关闭Socket
 ************************************************************/
 int CloseServerSocket(SOCKET *clientSocket)
 {
+	int iResult;
 	// shutdown the connection
 	iResult = shutdown(*clientSocket, SD_SEND);
 	if (iResult == SOCKET_ERROR) {
@@ -103,15 +100,18 @@ public:
 		cout << "mysql database connect successfully!" << endl;
 		return true;
 	}
-	bool query(const char* query)//若查询成功返回0，失败返回随机数
+	bool query(const char* query, int mode)//若查询成功返回0，失败返回随机数,mode 0 为插入，1为
 	{
 		if (mysql_query(&mysqlHandler, query))
 		{
 			cout << "execute query failed!" << endl;
 			return false;
 		}
-		result = mysql_store_result(&mysqlHandler);//存储查询结果
-		resultRowNum = mysql_num_fields(result);        //将结果集列数存放到num中
+		if (mode == 1)
+		{
+			result = mysql_store_result(&mysqlHandler);//存储查询结果
+			resultRowNum = mysql_num_fields(result);        //将结果集列数存放到num中
+		}
 		return true;
 	}
 	int fecthNum()
@@ -151,6 +151,9 @@ MysqlDataBase mysqlDB("127.0.0.1", 3306, "root", "142541", "rc522");
 *Function:程序入口
 ************************************************************/
 int main(int argc, char* argv[]) {
+	int iResult;
+	int iSendResult;
+
 	cout << "Server starting now..." << endl;
 	cout << "connect to mysql database..." << endl;
 	if (!mysqlDB.connect())
@@ -228,7 +231,7 @@ int main(int argc, char* argv[]) {
 		}
 		cout << "A client connect to this server,clientsocket is:" << *clientSocket << endl;
 		char clientType[buffLength] = {0};
-		iResult = recv(*clientSocket, clientType, 8, 0);
+		iResult = recv(*clientSocket, clientType, 16, 0);
 		if (iResult>0)
 		{
 			cout << "clientType received: " << iResult << endl;
@@ -238,7 +241,7 @@ int main(int argc, char* argv[]) {
 				cout << "clientType 1 process:" << endl;
 				CreateThread(NULL, 0, &rc522ProcessThread, clientSocket, 0, NULL);
 			}
-			else if (clientType[0] == '2')
+			else if (clientType[6] == '2')
 			{
 				cout << "clientType 2 process:" << endl;
 				CreateThread(NULL, 0, &appProcessThread, clientSocket, 0, NULL);
@@ -261,32 +264,68 @@ int main(int argc, char* argv[]) {
 DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 {
 	SOCKET* clientSocket = (SOCKET*)lpParameter;
-	int receByt = 0;
+	int iResult = 0;
+	int iSendResult = 0;
 	char recvBuf[buffLength] = {0};
 	char sendBuf[buffLength] = {0};
-	// Receive until the peer shuts down the connection
 	do {
 		iResult = recv(*clientSocket, recvBuf, 16, 0);
 		if (iResult > 0) {
 			cout << "Bytes received: " << iResult << endl;
 			cout << "receive data:" << recvBuf << endl;
-			for (int i = 0; i < 8; i++)
-			{
-				unsigned char c;
-				c = recvBuf[i];
 
-			}
-			char* str1 = (char*)"select cardid from cardid where cardid=";
+			char cardid[16];
+			memset(cardid, 0, sizeof(cardid));
 
-			mysqlDB.query(str1);
-			cout << "num is :" << mysqlDB.fecthNum() << endl;
-			MYSQL_ROW row = mysqlDB.fecthRow();
-			if (row != nullptr)
+			int i;
+			for (i = 0; i < strlen(recvBuf)-2; i++)
 			{
-				cout << row[0] << endl;
+				cardid[i] = recvBuf[i + 2];
 			}
-			cout << "send data:" << endl;
-			strcpy_s(sendBuf, "mode3state:ok");
+			cardid[i + 1] = 0;
+			cout << "cardid:" << cardid << endl;
+			if (recvBuf[0]=='1')//录入模式
+			{
+				char queStr[256];
+				memset(queStr, 0, sizeof(queStr));
+				char* str1 = (char*)"insert into cardid (cardid) values (\"";
+				char* str2 = (char*)"\");";
+
+				strcat(queStr, str1);
+				strcat(queStr, cardid);
+				strcat(queStr, str2);
+
+				cout << queStr << endl;
+
+				mysqlDB.query(queStr,0);
+				strcpy_s(sendBuf, "mode0state:ok");
+			}
+			else if (recvBuf[0] == '0')//验证模式
+			{
+				char queStr[256];
+				memset(queStr, 0, sizeof(queStr));
+				char* str1 = (char*)"select cardid from cardid where cardid=\"";
+				char* str2 = (char*)"\"";
+				strcat(queStr, str1);
+				strcat(queStr, cardid);
+				strcat(queStr, str2);
+				mysqlDB.query(queStr,1);
+				cout << "num is :" << mysqlDB.fecthNum() << endl;
+				MYSQL_ROW row = mysqlDB.fecthRow();
+				if (row != nullptr)
+				{
+					cout << row[0] << endl;
+					strcpy_s(sendBuf, "mode1state:ok");
+					cout << "ok" << endl;
+				}
+				else
+				{
+					strcpy_s(sendBuf, "mode1state:err");
+					cout << "error" << endl;
+				}
+			}
+
+			cout << "send data!" << endl;
 			iSendResult = send(*clientSocket, sendBuf, strlen(sendBuf), 0);
 			if (iSendResult == SOCKET_ERROR) {
 				cout << "send failed with error: " << WSAGetLastError() << endl;
@@ -296,47 +335,57 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 			cout << "data is sent!" << endl;
 			memset(recvBuf, 0, sizeof(recvBuf));
 		}
-		else if (iResult == 0)
+		else if (iResult == 0) {
 			cout << "Connection closing..." << endl;
+			break;
+		}
 		else {
 			cout << "recv failed with error :" << WSAGetLastError() << endl;
 			closesocket(*clientSocket);
+			break;
 		}
 
 	} while (iResult > 0);
+	closesocket(*clientSocket);
+	free(clientSocket);
 	return 0;
 }
 DWORD WINAPI appProcessThread(LPVOID lpParameter)
 {
 	SOCKET* clientSocket = (SOCKET*)lpParameter;
-	int receByt = 0;
-	char RecvBuf[buffLength];
-	char SendBuf[buffLength];
+	int iResult = 0;
+	int iSendResult = 0;
+	char recvBuf[buffLength] = { 0 };
+	char sendBuf[buffLength] = { 0 };
 	while (1)
 	{
-		receByt = recv(*clientSocket, RecvBuf, sizeof(RecvBuf), 0);
-		//buf[receByt]='\0';
-		if (receByt > 0) {
-			cout << "接收到的消息是：" << RecvBuf << ",来自客户端:" << *clientSocket << endl;
-			char ResBuf[buffLength];
+		iResult = recv(*clientSocket, recvBuf, 16, 0);
+		if (iResult > 0) {
+			cout << "Bytes received: " << iResult << endl;
+			cout << "receive data:" << recvBuf << endl;
+
+			//usertoken 14 
+			//return ok
+			//code
+			//send to rc522
+			//accept result
+			//send app res
 
 
-			//if (appMessagePocess(RecvBuf, SendBuf))
-			//{
-			//	int k = 0;
-			//	k = send(*clientSocket, SendBuf, sizeof(SendBuf), 0);
-			//	if (k < 0) {
-			//		cout << "send successfully" << endl;
-			//	}
-			//	memset(SendBuf, 0, sizeof(SendBuf));
-			//}
+
+
+
 		}
-		else
-		{
-			cout << "Client:" << *clientSocket << "recv message end!" << endl;
+		else if (iSendResult == 0) {
+			cout << "Connection closing..." << endl;
 			break;
 		}
-		memset(RecvBuf, 0, sizeof(RecvBuf));
+		else {
+			cout << "recv failed with error :" << WSAGetLastError() << endl;
+			closesocket(*clientSocket);
+			break;
+		}
+		memset(recvBuf, 0, sizeof(recvBuf));
 	}//while
 	closesocket(*clientSocket);
 	free(clientSocket);
