@@ -1,11 +1,14 @@
 ﻿  main.cpp
 D:\CodeData\VisualStudio\RC522Server\main.cpp(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
-D:\CodeData\VisualStudio\RC522Server\main.cpp(155,6): warning C4101: “iSendResult”: 未引用的局部变量
-D:\CodeData\VisualStudio\RC522Server\main.cpp(329,65): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
-D:\CodeData\VisualStudio\RC522Server\main.cpp(294,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-D:\CodeData\VisualStudio\RC522Server\main.cpp(295,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-D:\CodeData\VisualStudio\RC522Server\main.cpp(296,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-D:\CodeData\VisualStudio\RC522Server\main.cpp(309,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-D:\CodeData\VisualStudio\RC522Server\main.cpp(310,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-D:\CodeData\VisualStudio\RC522Server\main.cpp(311,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(158,6): warning C4101: “iSendResult”: 未引用的局部变量
+D:\CodeData\VisualStudio\RC522Server\main.cpp(333,65): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
+D:\CodeData\VisualStudio\RC522Server\main.cpp(298,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(299,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(300,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(313,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(314,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(315,5): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(395,63): warning C4267: “参数”: 从“size_t”转换到“int”，可能丢失数据
+D:\CodeData\VisualStudio\RC522Server\main.cpp(390,4): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+D:\CodeData\VisualStudio\RC522Server\main.cpp(394,4): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   RC522Server.vcxproj -> D:\CodeData\VisualStudio\RC522Server\x64\Debug\RC522Server.exe

@@ -36,6 +36,9 @@ SOCKET listenSocket = INVALID_SOCKET;
 addrinfo* result = NULL;
 addrinfo hints;
 
+SOCKET* clientSocketGlobal = NULL;
+char securityCode[7];
+
 /************************************************************
 *FunctionName:CloseServerSocket
 *Function:关闭Socket
@@ -264,6 +267,7 @@ int main(int argc, char* argv[]) {
 DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 {
 	SOCKET* clientSocket = (SOCKET*)lpParameter;
+	clientSocketGlobal = clientSocket;
 	int iResult = 0;
 	int iSendResult = 0;
 	char recvBuf[buffLength] = {0};
@@ -357,8 +361,15 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 	int iSendResult = 0;
 	char recvBuf[buffLength] = { 0 };
 	char sendBuf[buffLength] = { 0 };
-	while (1)
-	{
+	/*
+	char revUserName[64];
+	char revPassword[64];
+
+	recv(*clientSocket, revUserName, 64, 0);
+
+	recv(*clientSocket, revPassword, 64, 0);
+	*/
+	while (true) {
 		iResult = recv(*clientSocket, recvBuf, 16, 0);
 		if (iResult > 0) {
 			cout << "Bytes received: " << iResult << endl;
@@ -368,25 +379,35 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 			//return ok
 			//code
 			//send to rc522
-			//accept result
-			//send app res
+			//char queStr[256];
+			//memset(queStr, 0, sizeof(queStr));
+			//char* str1 = (char*)"select cardid from userinfo where cardid=\"";
+			//char* str2 = (char*)"\"";
+			//mysqlDB.query(queStr, 1);
+			//cout << "num is :" << mysqlDB.fecthNum() << endl;
+			//MYSQL_ROW row = mysqlDB.fecthRow();
+			memset(securityCode, 0, sizeof(securityCode));
+			strcpy(securityCode, recvBuf);
 
-
-
-
+			cout << "security code sended" << endl;
+			char str[16] = "CD";
+			strcat(str, securityCode);
+			iSendResult = send(*clientSocketGlobal, str, strlen(str), 0);
+			if (iSendResult == SOCKET_ERROR) {
+				cout << "send failed with error: " << WSAGetLastError() << endl;
+				closesocket(*clientSocket);
+			}
 
 		}
 		else if (iSendResult == 0) {
 			cout << "Connection closing..." << endl;
-			break;
 		}
 		else {
 			cout << "recv failed with error :" << WSAGetLastError() << endl;
 			closesocket(*clientSocket);
-			break;
 		}
 		memset(recvBuf, 0, sizeof(recvBuf));
-	}//while
+	}
 	closesocket(*clientSocket);
 	free(clientSocket);
 	return 0;
