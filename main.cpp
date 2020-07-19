@@ -3,7 +3,7 @@
 *E-mail:daisyskye1425@outlook.com
 *FileName:main.cpp
 *Function:RC522 Information Process Server
-*LastChangeData:20200616
+*LastChangeData:20200716
 ************************************************************/
 
 /************************************************************
@@ -13,8 +13,13 @@
 #include<WinSock2.h>
 #include<WS2tcpip.h>
 #include<mysql.h>
+#include<string>
+#include"json.hpp"
 #include"config.h"
-using namespace std;
+
+using namespace nlohmann;
+using JSON = basic_json<>;
+
 #pragma comment(lib,"ws2_32.lib")//link lib
 #pragma comment(lib,"libmysql.lib")
 
@@ -23,7 +28,7 @@ using namespace std;
 ************************************************************/
 DWORD WINAPI appProcessThread(LPVOID lpParameter);
 DWORD WINAPI rc522ProcessThread(LPVOID lpParameter);
-
+DWORD WINAPI switchUserType(LPVOID lpParameter);
 /************************************************************
 *全局变量声明
 ************************************************************/
@@ -49,7 +54,7 @@ int CloseServerSocket(SOCKET *clientSocket)
 	// shutdown the connection
 	iResult = shutdown(*clientSocket, SD_SEND);
 	if (iResult == SOCKET_ERROR) {
-		cout << "shutdown failed with error:" << WSAGetLastError() << endl;
+		std::cout << "shutdown failed with error:" << WSAGetLastError() << std::endl;
 		closesocket(*clientSocket);
 		WSACleanup();
 		return 1;
@@ -97,17 +102,17 @@ public:
 	{
 		if (mysql_real_connect(&mysqlHandler, info.ip, info.user, info.password, info.dbName, info.port, NULL, 0) == 0)
 		{
-			cout << "connect to mysql database error!" << endl;
+			std::cout << "connect to mysql database error!" << std::endl;
 			return false;
 		}
-		cout << "mysql database connect successfully!" << endl;
+		std::cout << "mysql database connect successfully!" << std::endl;
 		return true;
 	}
 	bool query(const char* query, int mode)//若查询成功返回0，失败返回随机数,mode 0 为插入，1为
 	{
 		if (mysql_query(&mysqlHandler, query))
 		{
-			cout << "execute query failed!" << endl;
+			std::cout << "execute query failed!" << std::endl;
 			return false;
 		}
 		if (mode == 1)
@@ -157,20 +162,20 @@ int main(int argc, char* argv[]) {
 	int iResult;
 	int iSendResult;
 
-	cout << "Server starting now..." << endl;
-	cout << "connect to mysql database..." << endl;
+	std::cout << "Server starting now..." << std::endl;
+	std::cout << "connect to mysql database..." << std::endl;
 	if (!mysqlDB.connect())
 	{
 		return -1;
 	}
-	cout << "Start to create server socket...." << endl;
+	std::cout << "Start to create server socket...." << std::endl;
 	//init winsock
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0)
 	{
-		cout << "WSAStartup failed with error: " << iResult << endl;
-		cin.get();
-		cin.get();
+		std::cout << "WSAStartup failed with error: " << iResult << std::endl;
+		std::cin.get();
+		std::cin.get();
 		return -1;
 	}
 	ZeroMemory(&hints, sizeof(hints));
@@ -183,84 +188,96 @@ int main(int argc, char* argv[]) {
 	iResult = getaddrinfo(NULL, serverPort, &hints, &result);
 	if (iResult != 0)
 	{
-		cout << "getaddrinfo failed with error: " << iResult << endl;
+		std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
 		WSACleanup();
-		cin.get();
-		cin.get();
+		std::cin.get();
+		std::cin.get();
 		return -1;
 	}
 
 	//create a socket for connecting to server
 	listenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);;
 	if (listenSocket == INVALID_SOCKET) {
-		cout << "socket failed with error: " << WSAGetLastError() << endl;
+		std::cout << "socket failed with error: " << WSAGetLastError() << std::endl;
 		freeaddrinfo(result);
 		WSACleanup();
-		cin.get();
-		cin.get();
+		std::cin.get();
+		std::cin.get();
 		return 1;
 	}
-	cout << "Create socket successfully!" << endl;
+	std::cout << "Create socket successfully!" << std::endl;
 	//setup the tcp listening socket
 	iResult = bind(listenSocket, result->ai_addr, (int)result->ai_addrlen);
 	if (iResult == SOCKET_ERROR) {
-		cout << "bind failed with error: " << WSAGetLastError() << endl;
+		std::cout << "bind failed with error: " << WSAGetLastError() << std::endl;
 		freeaddrinfo(result);
 		closesocket(listenSocket);
 		WSACleanup();
 		return 1;
 	}
-	cout << "bind port successfully!" << endl;
+	std::cout << "bind port successfully!" << std::endl;
 	freeaddrinfo(result);
 
 	iResult = listen(listenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR) {
-		cout << "listen failed with error: " << WSAGetLastError() << endl;
+		std::cout << "listen failed with error: " << WSAGetLastError() << std::endl;
 		closesocket(listenSocket);
 		WSACleanup();
 		return 1;
 	}
-	cout << "listen successfully!" << endl;
+	std::cout << "listen successfully!" << std::endl;
+	int acceptErrorTimes = 0;
 	while (true)
 	{
 		SOCKET *clientSocket = new SOCKET;
 		*clientSocket = NULL;
 		*clientSocket = accept(listenSocket, 0, 0);
-		if (*clientSocket==NULL)
+		if (*clientSocket == NULL)
 		{
-			cout << "Accept failed with error: " << WSAGetLastError() << "\tcoutinue"<<endl;
+			std::cout << "Accept failed with error: " << WSAGetLastError() << "\tcoutinue" << std::endl;
 			closesocket(listenSocket);
+			acceptErrorTimes++;
+			if (acceptErrorTimes >= 100)
+			{
+				std::cout << "Accept error too many times, server stop now, please check if there is some error within it!" << std::endl;
+				break;
+			}
 			continue;
 		}
-		cout << "A client connect to this server,clientsocket is:" << *clientSocket << endl;
-		char clientType[buffLength] = {0};
-		iResult = recv(*clientSocket, clientType, 16, 0);
-		if (iResult>0)
-		{
-			cout << "clientType received: " << iResult << endl;
-			cout << "clientType data:" << clientType << endl;
-			if (clientType[6] == '1')
-			{
-				cout << "clientType 1 process:" << endl;
-				CreateThread(NULL, 0, &rc522ProcessThread, clientSocket, 0, NULL);
-			}
-			else if (clientType[6] == '2')
-			{
-				cout << "clientType 2 process:" << endl;
-				CreateThread(NULL, 0, &appProcessThread, clientSocket, 0, NULL);
-			}
-		}
-		else if (iResult == 0)
-			cout << "Connection closing..." << endl;
-		else {
-			cout << "recv failed with error :" << WSAGetLastError() << endl;
-			closesocket(*clientSocket);
-		}
-		
+		CreateThread(NULL, 0, &switchUserType, clientSocket, 0, NULL);
 	}
+	CloseServerSocket(&listenSocket);
+	return 0;
+}
 
-
-	//CloseServerSocket();
+DWORD WINAPI switchUserType(LPVOID lpParameter)
+{
+	int iResult = 0;
+	SOCKET* clientSocket = (SOCKET*)lpParameter;
+	std::cout << "A client connect to this server,clientsocket is:" << *clientSocket << std::endl;
+	char clientType[buffLength] = { 0 };
+	iResult = recv(*clientSocket, clientType, 16, 0);
+	if (iResult > 0)
+	{
+		std::cout << "clientType received: " << iResult << std::endl;
+		std::cout << "clientType data:" << clientType << std::endl;
+		if (clientType[6] == '1')
+		{
+			std::cout << "clientType 1 process:" << std::endl;
+			CreateThread(NULL, 0, &rc522ProcessThread, clientSocket, 0, NULL);
+		}
+		else if (clientType[6] == '2')
+		{
+			std::cout << "clientType 2 process:" << std::endl;
+			CreateThread(NULL, 0, &appProcessThread, clientSocket, 0, NULL);
+		}
+	}
+	else if (iResult == 0)
+		std::cout << "Connection closing..." << std::endl;
+	else {
+		std::cout << "recv failed with error :" << WSAGetLastError() << std::endl;
+		closesocket(*clientSocket);
+	}
 	return 0;
 }
 
@@ -275,8 +292,8 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 	do {
 		iResult = recv(*clientSocket, recvBuf, 16, 0);
 		if (iResult > 0) {
-			cout << "Bytes received: " << iResult << endl;
-			cout << "receive data:" << recvBuf << endl;
+			std::cout << "Bytes received: " << iResult << std::endl;
+			std::cout << "receive data:" << recvBuf << std::endl;
 
 			char cardid[16];
 			memset(cardid, 0, sizeof(cardid));
@@ -287,7 +304,7 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 				cardid[i] = recvBuf[i + 2];
 			}
 			cardid[i + 1] = 0;
-			cout << "cardid:" << cardid << endl;
+			std::cout << "cardid:" << cardid << std::endl;
 			if (recvBuf[0]=='1')//录入模式
 			{
 				char queStr[256];
@@ -299,7 +316,7 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 				strcat(queStr, cardid);
 				strcat(queStr, str2);
 
-				cout << queStr << endl;
+				std::cout << queStr << std::endl;
 
 				mysqlDB.query(queStr,0);
 				strcpy_s(sendBuf, "mode0state:ok");
@@ -314,37 +331,37 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 				strcat(queStr, cardid);
 				strcat(queStr, str2);
 				mysqlDB.query(queStr,1);
-				cout << "num is :" << mysqlDB.fecthNum() << endl;
+				std::cout << "num is :" << mysqlDB.fecthNum() << std::endl;
 				MYSQL_ROW row = mysqlDB.fecthRow();
 				if (row != nullptr)
 				{
-					cout << row[0] << endl;
+					std::cout << row[0] << std::endl;
 					strcpy_s(sendBuf, "mode1state:ok");
-					cout << "ok" << endl;
+					std::cout << "ok" << std::endl;
 				}
 				else
 				{
 					strcpy_s(sendBuf, "mode1state:err");
-					cout << "error" << endl;
+					std::cout << "error" << std::endl;
 				}
 			}
 
-			cout << "send data!" << endl;
+			std::cout << "send data!" << std::endl;
 			iSendResult = send(*clientSocket, sendBuf, strlen(sendBuf), 0);
 			if (iSendResult == SOCKET_ERROR) {
-				cout << "send failed with error: " << WSAGetLastError() << endl;
+				std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
 				closesocket(*clientSocket);
 			}
-			cout << "Bytes sent: " << iSendResult << endl;
-			cout << "data is sent!" << endl;
+			std::cout << "Bytes sent: " << iSendResult << std::endl;
+			std::cout << "data is sent!" << std::endl;
 			memset(recvBuf, 0, sizeof(recvBuf));
 		}
 		else if (iResult == 0) {
-			cout << "Connection closing..." << endl;
+			std::cout << "Connection closing..." << std::endl;
 			break;
 		}
 		else {
-			cout << "recv failed with error :" << WSAGetLastError() << endl;
+			std::cout << "recv failed with error :" << WSAGetLastError() << std::endl;
 			closesocket(*clientSocket);
 			break;
 		}
@@ -354,6 +371,7 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 	free(clientSocket);
 	return 0;
 }
+
 DWORD WINAPI appProcessThread(LPVOID lpParameter)
 {
 	SOCKET* clientSocket = (SOCKET*)lpParameter;
@@ -372,8 +390,8 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 	while (true) {
 		iResult = recv(*clientSocket, recvBuf, 16, 0);
 		if (iResult > 0) {
-			cout << "Bytes received: " << iResult << endl;
-			cout << "receive data:" << recvBuf << endl;
+			std::cout << "Bytes received: " << iResult << std::endl;
+			std::cout << "receive data:" << recvBuf << std::endl;
 
 			//usertoken 14 
 			//return ok
@@ -389,22 +407,24 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 			memset(securityCode, 0, sizeof(securityCode));
 			strcpy(securityCode, recvBuf);
 
-			cout << "security code sended" << endl;
+			std::cout << "security code sended" << std::endl;
 			char str[16] = "CD";
 			strcat(str, securityCode);
 			iSendResult = send(*clientSocketGlobal, str, strlen(str), 0);
 			if (iSendResult == SOCKET_ERROR) {
-				cout << "send failed with error: " << WSAGetLastError() << endl;
+				std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
 				closesocket(*clientSocket);
 			}
 
 		}
 		else if (iSendResult == 0) {
-			cout << "Connection closing..." << endl;
+			std::cout << "Connection closing..." << std::endl;
+			break;
 		}
 		else {
-			cout << "recv failed with error :" << WSAGetLastError() << endl;
+			std::cout << "recv failed with error :" << WSAGetLastError() << std::endl;
 			closesocket(*clientSocket);
+			break;
 		}
 		memset(recvBuf, 0, sizeof(recvBuf));
 	}
@@ -412,6 +432,7 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 	free(clientSocket);
 	return 0;
 }
+
 int appMessagePocess(char* RecvBuf, char* SendBuf)
 {
 	return 0;
