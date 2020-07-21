@@ -74,14 +74,16 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\include;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\lib;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\include;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\lib;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -140,12 +142,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="base64.cpp" />
     <ClCompile Include="config.cpp" />
+    <ClCompile Include="CSmtp.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="md5.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="base64.h" />
     <ClInclude Include="config.h" />
+    <ClInclude Include="CSmtp.h" />
     <ClInclude Include="json.hpp" />
+    <ClInclude Include="md5.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

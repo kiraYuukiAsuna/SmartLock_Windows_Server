@@ -1,36 +1,40 @@
 /************************************************************
-*Author:ç‹ç‘é¾™
+*Author:ÍõÈğÁú
 *E-mail:daisyskye1425@outlook.com
 *FileName:main.cpp
 *Function:RC522 Information Process Server
 *LastChangeData:20200716
 ************************************************************/
 
+//TODO
+//1.app user login
+//2.win platform control program
+
+
 /************************************************************
-*åŒ…å«æ–‡ä»¶åŠé“¾æ¥åº“æ–‡ä»¶
+*°üº¬ÎÄ¼ş¼°Á´½Ó¿âÎÄ¼ş
 ************************************************************/
 #include<iostream>
 #include<WinSock2.h>
 #include<WS2tcpip.h>
 #include<mysql.h>
 #include<string>
-#include"json.hpp"
 #include"config.h"
-
-using namespace nlohmann;
-using JSON = basic_json<>;
+#include"CSmtp.h"
+#include<time.h>
 
 #pragma comment(lib,"ws2_32.lib")//link lib
 #pragma comment(lib,"libmysql.lib")
 
 /************************************************************
-*å‡½æ•°å£°æ˜
+*º¯ÊıÉùÃ÷
 ************************************************************/
 DWORD WINAPI appProcessThread(LPVOID lpParameter);
 DWORD WINAPI rc522ProcessThread(LPVOID lpParameter);
 DWORD WINAPI switchUserType(LPVOID lpParameter);
+DWORD WINAPI mailSender(LPVOID lpParameter);
 /************************************************************
-*å…¨å±€å˜é‡å£°æ˜
+*È«¾Ö±äÁ¿ÉùÃ÷
 ************************************************************/
 const int buffLength = 16;
 const char serverPort[] = "27015";
@@ -46,9 +50,9 @@ char securityCode[7];
 
 /************************************************************
 *FunctionName:CloseServerSocket
-*Function:å…³é—­Socket
+*Function:¹Ø±ÕSocket
 ************************************************************/
-int CloseServerSocket(SOCKET *clientSocket)
+int CloseServerSocket(SOCKET* clientSocket)
 {
 	int iResult;
 	// shutdown the connection
@@ -68,7 +72,7 @@ int CloseServerSocket(SOCKET *clientSocket)
 }
 /************************************************************
 *ClassName:MysqlDataBase
-*Function:æ“ä½œmysqlæ•°æ®åº“
+*Function:²Ù×÷mysqlÊı¾İ¿â
 ************************************************************/
 class MysqlDataBase
 {
@@ -88,7 +92,7 @@ class MysqlDataBase
 public:
 	MysqlDataBase(const char* ip, const int port, const char* user, const char* password, const char* dbName)
 	{
-		mysql_init(&mysqlHandler);//åˆå§‹åŒ–mysql
+		mysql_init(&mysqlHandler);//³õÊ¼»¯mysql
 		this->info.ip = (char*)ip;
 		this->info.port = port;
 		this->info.user = (char*)user;
@@ -108,8 +112,9 @@ public:
 		std::cout << "mysql database connect successfully!" << std::endl;
 		return true;
 	}
-	bool query(const char* query, int mode)//è‹¥æŸ¥è¯¢æˆåŠŸè¿”å›0ï¼Œå¤±è´¥è¿”å›éšæœºæ•°,mode 0 ä¸ºæ’å…¥ï¼Œ1ä¸º
+	bool query(const char* query, int mode)//Èô²éÑ¯³É¹¦·µ»Ø0£¬Ê§°Ü·µ»ØËæ»úÊı,mode 0 Îª²åÈë£¬1Îª²éÑ¯
 	{
+		freeResult();
 		if (mysql_query(&mysqlHandler, query))
 		{
 			std::cout << "execute query failed!" << std::endl;
@@ -117,8 +122,8 @@ public:
 		}
 		if (mode == 1)
 		{
-			result = mysql_store_result(&mysqlHandler);//å­˜å‚¨æŸ¥è¯¢ç»“æœ
-			resultRowNum = mysql_num_fields(result);        //å°†ç»“æœé›†åˆ—æ•°å­˜æ”¾åˆ°numä¸­
+			result = mysql_store_result(&mysqlHandler);//´æ´¢²éÑ¯½á¹û
+			resultRowNum = mysql_num_fields(result);        //½«½á¹û¼¯ÁĞÊı´æ·Åµ½numÖĞ
 		}
 		return true;
 	}
@@ -144,19 +149,21 @@ public:
 	}
 	bool freeResult()
 	{
-		mysql_free_result(result);     //é‡Šæ”¾ç»“æœé›†æ‰€å ç”¨çš„å†…å­˜
+		mysql_free_result(result);     //ÊÍ·Å½á¹û¼¯ËùÕ¼ÓÃµÄÄÚ´æ
 		result = 0;
+		return true;
 	}
 	bool close()
 	{
 		mysql_close(&mysqlHandler);
+		return true;
 	}
 };
 
 MysqlDataBase mysqlDB("127.0.0.1", 3306, "root", "142541", "rc522");
 /************************************************************
 *FunctionName:main
-*Function:ç¨‹åºå…¥å£
+*Function:³ÌĞòÈë¿Ú
 ************************************************************/
 int main(int argc, char* argv[]) {
 	int iResult;
@@ -229,7 +236,7 @@ int main(int argc, char* argv[]) {
 	int acceptErrorTimes = 0;
 	while (true)
 	{
-		SOCKET *clientSocket = new SOCKET;
+		SOCKET* clientSocket = new SOCKET;
 		*clientSocket = NULL;
 		*clientSocket = accept(listenSocket, 0, 0);
 		if (*clientSocket == NULL)
@@ -287,8 +294,8 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 	clientSocketGlobal = clientSocket;
 	int iResult = 0;
 	int iSendResult = 0;
-	char recvBuf[buffLength] = {0};
-	char sendBuf[buffLength] = {0};
+	char recvBuf[buffLength] = { 0 };
+	char sendBuf[buffLength] = { 0 };
 	do {
 		iResult = recv(*clientSocket, recvBuf, 16, 0);
 		if (iResult > 0) {
@@ -299,29 +306,55 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 			memset(cardid, 0, sizeof(cardid));
 
 			int i;
-			for (i = 0; i < strlen(recvBuf)-2; i++)
+			for (i = 0; i < strlen(recvBuf) - 2; i++)
 			{
 				cardid[i] = recvBuf[i + 2];
 			}
 			cardid[i + 1] = 0;
 			std::cout << "cardid:" << cardid << std::endl;
-			if (recvBuf[0]=='1')//å½•å…¥æ¨¡å¼
+			if (recvBuf[0] == '1')//Â¼ÈëÄ£Ê½
 			{
 				char queStr[256];
+				//ÑéÖ¤ÊÇ·ñÒÑ¾­´æÔÚ´Ë¿¨ºÅ
 				memset(queStr, 0, sizeof(queStr));
-				char* str1 = (char*)"insert into cardid (cardid) values (\"";
-				char* str2 = (char*)"\");";
-
+				char* str1 = (char*)"select cardid from cardid where cardid=\"";
+				char* str2 = (char*)"\"";
 				strcat(queStr, str1);
 				strcat(queStr, cardid);
 				strcat(queStr, str2);
+				mysqlDB.query(queStr, 1);
+				std::cout << "result:" << mysqlDB.fecthNum() << std::endl;
+				MYSQL_ROW row = mysqlDB.fecthRow();
+				if (row == nullptr)
+				{
+					//Â¼Èë¿¨ºÅÊı¾İ¿â
+					memset(queStr, 0, sizeof(queStr));
+					char* str1 = (char*)"insert into cardid (cardid) values (\"";
+					char* str2 = (char*)"\");";
+					strcat(queStr, str1);
+					strcat(queStr, cardid);
+					strcat(queStr, str2);
+					std::cout << queStr << std::endl;
+					mysqlDB.query(queStr, 0);
+					//Â¼ÈëÓÃ»§Êı¾İ¿â
+					memset(queStr, 0, sizeof(queStr));
+					char* str3 = (char*)"insert into userinfo (cardid,email,password) values (\"";
+					char* str4 = (char*)"\",\"null\",\"null\");";
+					strcat(queStr, str3);
+					strcat(queStr, cardid);
+					strcat(queStr, str4);
+					std::cout << queStr << std::endl;
+					mysqlDB.query(queStr, 0);
 
-				std::cout << queStr << std::endl;
+					strcpy_s(sendBuf, "mode0state:ok");
+				}
+				else
+				{
+					strcpy_s(sendBuf, "mode0state:err");
+				}
 
-				mysqlDB.query(queStr,0);
-				strcpy_s(sendBuf, "mode0state:ok");
 			}
-			else if (recvBuf[0] == '0')//éªŒè¯æ¨¡å¼
+			else if (recvBuf[0] == '0')//ÑéÖ¤Ä£Ê½
 			{
 				char queStr[256];
 				memset(queStr, 0, sizeof(queStr));
@@ -330,13 +363,14 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 				strcat(queStr, str1);
 				strcat(queStr, cardid);
 				strcat(queStr, str2);
-				mysqlDB.query(queStr,1);
+				mysqlDB.query(queStr, 1);
 				std::cout << "num is :" << mysqlDB.fecthNum() << std::endl;
 				MYSQL_ROW row = mysqlDB.fecthRow();
 				if (row != nullptr)
 				{
 					std::cout << row[0] << std::endl;
 					strcpy_s(sendBuf, "mode1state:ok");
+					CreateThread(NULL, 0, &mailSender, cardid, 0, NULL);
 					std::cout << "ok" << std::endl;
 				}
 				else
@@ -367,6 +401,7 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 		}
 
 	} while (iResult > 0);
+	std::cout << "rc522processthreadexit" << endl;
 	closesocket(*clientSocket);
 	free(clientSocket);
 	return 0;
@@ -436,4 +471,92 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 int appMessagePocess(char* RecvBuf, char* SendBuf)
 {
 	return 0;
+}
+
+DWORD WINAPI mailSender(LPVOID lpParameter)
+{
+	char* cardid = (char*)lpParameter;
+	bool bError = false;
+	try {
+		time_t curtime = time(0);
+		tm time = *localtime(&curtime);
+
+		string str;
+		str = "½âËøÊ±¼äÎª:";
+		str += to_string(time.tm_year + 1900);
+		str += "Äê";
+		str += to_string(time.tm_mon + 1);
+		str += "ÔÂ";
+		str += to_string(time.tm_mday);
+		str += "ÈÕ";
+		str += to_string(time.tm_hour);
+		str += ":";
+		str += to_string(time.tm_min);
+		str += ":";
+		str += to_string(time.tm_sec);
+		char* time_char = (char*)str.data();
+		std::cout << "time is:"<<time_char << std::endl;
+		char mailAddr[64];
+		char queStr[256];
+		memset(queStr, 0, sizeof(queStr));
+		char* str1 = (char*)"select cardid,email from userinfo where cardid=\"";
+		char* str2 = (char*)"\"";
+		strcat(queStr, str1);
+		strcat(queStr, cardid);
+		strcat(queStr, str2);
+		mysqlDB.query(queStr, 1);
+		std::cout << "mail:cardid: "<<cardid << endl;
+		std::cout << "num is :" << mysqlDB.fecthNum() << std::endl;
+		MYSQL_ROW row = mysqlDB.fecthRow();
+		if (row != nullptr && mysqlDB.fecthNum()==2)
+		{
+			std::cout << "row0:"<<row[0] << std::endl;
+			std::cout << "row1:" << row[1] << std::endl;
+			strcpy_s(mailAddr, row[0]);
+			std::cout << "mail start to send!" << std::endl;
+		}
+		else
+		{
+			return 0;
+		}
+
+		CSmtp mail;
+
+		mail.SetSMTPServer("smtp.qq.com", 465);//ÓÊ¼ş·şÎñÆ÷µØÖ·
+		mail.SetSecurityType(USE_SSL);//Ê¹ÓÃSSL
+
+		mail.SetLogin("1175445708@qq.com");//µÇÂ¼ÕËºÅ
+		mail.SetPassword("pmsqfjrtnplihbbb");//ÃÜÂë
+
+		mail.SetSenderName("RC522Server");//·¢¼şÈËêÇ³Æ
+		mail.SetSenderMail("1175445708@qq.com");//·¢¼şÈËÓÊÏä
+		mail.SetReplyTo("user@domain.com");//»Ø¸´ÓÊÏä
+
+		mail.SetSubject("ĞÂµÄ½âËøÍ¨Öª");//ÓÊ¼ş±êÌâ
+		mail.AddRecipient(row[1]);//½ÓÊÕÕß
+
+		mail.SetXPriority(XPRIORITY_NORMAL);//ÓÊ¼şÓÅÏÈ¼¶
+		mail.SetXMailer("The Bat! (v3.02) Professional");//·¢ËÍÓÊ¼şµÄ¿Í»§¶Ë±êÊ¶
+
+		//ÓÊ¼şÄÚÈİ
+		mail.AddMsgLine("ÄãºÃ£¬ÎÒÃÇ·¢ÏÖÄãÊ¹ÓÃÁËÄãµÄ IC¿¨ ½øĞĞÁË½âËø²Ù×÷¡£");
+		mail.AddMsgLine("ÕâÊÇÄãµÄĞĞÎªÂğ£¿");
+		mail.AddMsgLine("Èç¹û²»ÊÇËµÃ÷ÄãµÄ IC¿¨ ÒÑ¾­¶ªÊ§£¬Çë¼°Ê±¹ÒÊ§£¡");
+		mail.AddMsgLine(time_char);
+		mail.AddMsgLine("--From RC522 Server");
+		mail.AddMsgLine("DO not reply!");
+		//mail.AddAttachment("../test1.jpg");
+		//mail.AddAttachment("c:\\test2.exe");
+		//mail.AddAttachment("c:\\test3.txt");
+
+		mail.Send();//·¢ËÍÓÊ¼ş
+	}
+	catch (ECSmtp e)
+	{
+		std::cout << "Error: " << e.GetErrorText().c_str() << ".\n";
+		bError = true;
+	}
+	if (!bError)
+		std::cout << "Mail was send successfully.\n";
+	return 1;
 }
