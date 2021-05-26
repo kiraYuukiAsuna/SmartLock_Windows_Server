@@ -37,7 +37,7 @@ DWORD WINAPI mailSender(LPVOID lpParameter);
 *全局变量声明
 ************************************************************/
 const int buffLength = 16;
-const char serverPort[] = "27015";
+const char serverPort[] = "25500";
 
 WSADATA wsaData;
 SOCKET listenSocket = INVALID_SOCKET;
@@ -45,7 +45,9 @@ SOCKET listenSocket = INVALID_SOCKET;
 addrinfo* result = NULL;
 addrinfo hints;
 
-SOCKET* clientSocketGlobal = NULL;
+SOCKET* hardwareClientSocketGlobal = nullptr;
+SOCKET* appClientSocketGlobal = nullptr;
+
 char securityCode[7];
 
 /************************************************************
@@ -160,7 +162,7 @@ public:
 	}
 };
 
-MysqlDataBase mysqlDB("127.0.0.1", 3306, "root", "142541", "rc522");
+MysqlDataBase mysqlDB("127.0.0.1", 3306, "root", "446169", "rc522");
 /************************************************************
 *FunctionName:main
 *Function:程序入口
@@ -291,7 +293,7 @@ DWORD WINAPI switchUserType(LPVOID lpParameter)
 DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 {
 	SOCKET* clientSocket = (SOCKET*)lpParameter;
-	clientSocketGlobal = clientSocket;
+	hardwareClientSocketGlobal = clientSocket;
 	int iResult = 0;
 	int iSendResult = 0;
 	char recvBuf[buffLength] = { 0 };
@@ -344,6 +346,7 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 					strcat(queStr, cardid);
 					strcat(queStr, str4);
 					std::cout << queStr << std::endl;
+					std::cout << queStr << std::endl;
 					mysqlDB.query(queStr, 0);
 
 					strcpy_s(sendBuf, "mode0state:ok");
@@ -366,6 +369,7 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 				mysqlDB.query(queStr, 1);
 				std::cout << "num is :" << mysqlDB.fecthNum() << std::endl;
 				MYSQL_ROW row = mysqlDB.fecthRow();
+
 				if (row != nullptr)
 				{
 					std::cout << row[0] << std::endl;
@@ -410,6 +414,7 @@ DWORD WINAPI rc522ProcessThread(LPVOID lpParameter)
 DWORD WINAPI appProcessThread(LPVOID lpParameter)
 {
 	SOCKET* clientSocket = (SOCKET*)lpParameter;
+	appClientSocketGlobal = clientSocket;
 	int iResult = 0;
 	int iSendResult = 0;
 	char recvBuf[buffLength] = { 0 };
@@ -422,47 +427,51 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 
 	recv(*clientSocket, revPassword, 64, 0);
 	*/
-	while (true) {
-		iResult = recv(*clientSocket, recvBuf, 16, 0);
-		if (iResult > 0) {
-			std::cout << "Bytes received: " << iResult << std::endl;
-			std::cout << "receive data:" << recvBuf << std::endl;
 
-			//usertoken 14 
-			//return ok
-			//code
-			//send to rc522
-			//char queStr[256];
-			//memset(queStr, 0, sizeof(queStr));
-			//char* str1 = (char*)"select cardid from userinfo where cardid=\"";
-			//char* str2 = (char*)"\"";
-			//mysqlDB.query(queStr, 1);
-			//cout << "num is :" << mysqlDB.fecthNum() << endl;
-			//MYSQL_ROW row = mysqlDB.fecthRow();
-			memset(securityCode, 0, sizeof(securityCode));
-			strcpy(securityCode, recvBuf);
+	send(*appClientSocketGlobal, "Hello!", strlen("Hello!"), 0);
 
-			std::cout << "security code sended" << std::endl;
-			char str[16] = "CD";
-			strcat(str, securityCode);
-			iSendResult = send(*clientSocketGlobal, str, strlen(str), 0);
-			if (iSendResult == SOCKET_ERROR) {
-				std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
-				closesocket(*clientSocket);
+		while (true) {
+			iResult = recv(*clientSocket, recvBuf, 16, 0);
+			if (iResult > 0) {
+				std::cout << "Bytes received: " << iResult << std::endl;
+				std::cout << "receive data:" << recvBuf << std::endl;
+
+				//usertoken 14 
+				//return ok
+				//code
+				//send to rc522
+				//char queStr[256];
+				//memset(queStr, 0, sizeof(queStr));
+				//char* str1 = (char*)"select cardid from userinfo where cardid=\"";
+				//char* str2 = (char*)"\"";
+				//mysqlDB.query(queStr, 1);
+				//cout << "num is :" << mysqlDB.fecthNum() << endl;
+				//MYSQL_ROW row = mysqlDB.fecthRow();
+				memset(securityCode, 0, sizeof(securityCode));
+				strcpy(securityCode, recvBuf);
+
+				std::cout << "security code sended" << std::endl;
+				char str[16] = "CD";
+				strcat(str, securityCode);
+				std::cout << str << std::endl;
+				iSendResult = send(*appClientSocketGlobal, str, strlen(str), 0);
+				if (iSendResult == SOCKET_ERROR) {
+					std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
+					closesocket(*clientSocket);
+				}
+
 			}
-
+			else if (iSendResult == 0) {
+				std::cout << "Connection closing..." << std::endl;
+				break;
+			}
+			else {
+				std::cout << "recv failed with error :" << WSAGetLastError() << std::endl;
+				closesocket(*clientSocket);
+				break;
+			}
+			memset(recvBuf, 0, sizeof(recvBuf));
 		}
-		else if (iSendResult == 0) {
-			std::cout << "Connection closing..." << std::endl;
-			break;
-		}
-		else {
-			std::cout << "recv failed with error :" << WSAGetLastError() << std::endl;
-			closesocket(*clientSocket);
-			break;
-		}
-		memset(recvBuf, 0, sizeof(recvBuf));
-	}
 	closesocket(*clientSocket);
 	free(clientSocket);
 	return 0;
@@ -495,7 +504,7 @@ DWORD WINAPI mailSender(LPVOID lpParameter)
 		str += ":";
 		str += to_string(time.tm_sec);
 		char* time_char = (char*)str.data();
-		std::cout << "time is:"<<time_char << std::endl;
+		std::cout << "time is:" << time_char << std::endl;
 		char mailAddr[64];
 		char queStr[256];
 		memset(queStr, 0, sizeof(queStr));
@@ -505,12 +514,12 @@ DWORD WINAPI mailSender(LPVOID lpParameter)
 		strcat(queStr, cardid);
 		strcat(queStr, str2);
 		mysqlDB.query(queStr, 1);
-		std::cout << "mail:cardid: "<<cardid << endl;
+		std::cout << "mail:cardid: " << cardid << endl;
 		std::cout << "num is :" << mysqlDB.fecthNum() << std::endl;
 		MYSQL_ROW row = mysqlDB.fecthRow();
-		if (row != nullptr && mysqlDB.fecthNum()==2)
+		if (row != nullptr && mysqlDB.fecthNum() == 2)
 		{
-			std::cout << "row0:"<<row[0] << std::endl;
+			std::cout << "row0:" << row[0] << std::endl;
 			std::cout << "row1:" << row[1] << std::endl;
 			strcpy_s(mailAddr, row[0]);
 			std::cout << "mail start to send!" << std::endl;

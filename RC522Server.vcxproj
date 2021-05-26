@@ -74,16 +74,16 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\include;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\lib;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>openssl1.1.0\include;mysql8.0.19\include;$(IncludePath)</IncludePath>
+    <LibraryPath>openssl1.1.0\lib;mysql8.0.19\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\include;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\CodeData\VisualStudio\RC522Server\openssl1.1.0\lib;D:\CodeData\VisualStudio\RC522Server\mysql8.0.19\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>openssl1.1.0\include;mysql8.0.19\include;$(IncludePath)</IncludePath>
+    <LibraryPath>openssl1.1.0\lib;mysql8.0.19\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
