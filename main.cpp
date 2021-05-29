@@ -427,18 +427,24 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 	char recvBuf[buffLength] = { 0 };
 	char sendBuf[buffLength] = { 0 };
 
-	char recvUserName[64];
-	char recvPassword[64];
+	char recvUserName[64]={ 0 };
+	char recvPassword[64]={ 0 };
 
 userlogin:
+	memset(recvUserName, 0, sizeof(recvUserName));
+	memset(recvPassword, 0, sizeof(recvPassword));
 
 	recv(*clientSocket, recvUserName, 64, 0);
 
 	recv(*clientSocket, recvPassword, 64, 0);
 
-	std::string sql;
-	sql += "select username from userinfo where username=\"" + std::string(recvUserName) + "\"";
-	mysqlDB.query(sql.c_str(), 1);
+	char sql[256];
+	memset(sql, 0, sizeof(sql));
+	strcat(sql, "select username from userinfo where username=\"");
+	strcat(sql, recvUserName);
+	strcat(sql, "\"");
+	std::cout << sql<<std::endl;
+	mysqlDB.query(sql, 1);
 
 	MYSQL_ROW row = mysqlDB.fecthRow();
 
@@ -448,21 +454,28 @@ userlogin:
 		goto userlogin;
 	}
 	else if (mysqlDB.fecthNum() == 1) {
-		std::string sql;
-		sql += "SELECT password FROM userinfo WHERE username=\"" + std::string(recvPassword) + "\"";
-		mysqlDB.query(sql.c_str(), 1);
+		char sql[256];
+		memset(sql, 0, sizeof(sql));
+		strcat(sql, "SELECT password FROM userinfo WHERE username=\"");
+		strcat(sql, recvUserName);
+		strcat(sql, "\"");
+		mysqlDB.query(sql, 1);
+		std::cout << sql << std::endl;
 		MYSQL_ROW row = mysqlDB.fecthRow();
 		if (mysqlDB.fecthNum() == 1&&row!=nullptr) {
-			if (std::strcmp(recvPassword, row[0])) {
+			if (std::strcmp(recvPassword, row[0])==0) {
+				std::cout << "login ok";
 				const char* welcomeMessage = "AWloginok";
 				send(*appClientSocketGlobal, welcomeMessage, strlen(welcomeMessage), 0);
 			}
 			else {
+				std::cout << "login with error:username or password wrong";
 				const char* welcomeMessage = "AEusernameorpasswordwrong";
 				send(*appClientSocketGlobal, welcomeMessage, strlen(welcomeMessage), 0);
 			}
 		}
 		else {
+			std::cout << "Error:internal data base error (password)";
 			const char* str = "AEserver internal data base error";
 			send(*appClientSocketGlobal, str, strlen(str), 0);
 			goto userlogin;
@@ -470,6 +483,7 @@ userlogin:
 	}
 	else
 	{
+		std::cout << "Error:internal data base error (username)";
 		const char* str = "AEserver internal data base error";
 		send(*appClientSocketGlobal, str, strlen(str), 0);
 		goto userlogin;
@@ -488,7 +502,7 @@ userlogin:
 			char str[16] = "CD";
 			strcat(str, securityCode);
 			std::cout << str << std::endl;
-			iSendResult = send(*appClientSocketGlobal, str, strlen(str), 0);
+			iSendResult = send(*hardwareClientSocketGlobal, str, strlen(str), 0);
 			if (iSendResult == SOCKET_ERROR) {
 				std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
 				closesocket(*clientSocket);
