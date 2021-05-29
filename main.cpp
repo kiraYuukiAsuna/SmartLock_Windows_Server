@@ -117,6 +117,7 @@ public:
 	bool query(const char* query, int mode)//若查询成功返回0，失败返回随机数,mode 0 为插入，1为查询
 	{
 		freeResult();
+		resultRowNum = 0;
 		if (mysql_query(&mysqlHandler, query))
 		{
 			std::cout << "execute query failed!" << std::endl;
@@ -280,6 +281,12 @@ DWORD WINAPI switchUserType(LPVOID lpParameter)
 			std::cout << "clientType 2 process:" << std::endl;
 			CreateThread(NULL, 0, &appProcessThread, clientSocket, 0, NULL);
 		}
+		else
+		{
+			const char* str = "ERTER";
+			send(*clientSocket, str, strlen(str), 0);
+			shutdown(*clientSocket,2);
+		}
 	}
 	else if (iResult == 0)
 		std::cout << "Connection closing..." << std::endl;
@@ -419,66 +426,88 @@ DWORD WINAPI appProcessThread(LPVOID lpParameter)
 	int iSendResult = 0;
 	char recvBuf[buffLength] = { 0 };
 	char sendBuf[buffLength] = { 0 };
-	/*
-	char revUserName[64];
-	char revPassword[64];
 
-	recv(*clientSocket, revUserName, 64, 0);
+	char recvUserName[64];
+	char recvPassword[64];
 
-	recv(*clientSocket, revPassword, 64, 0);
-	*/
+userlogin:
 
-	send(*appClientSocketGlobal, "Hello!", strlen("Hello!"), 0);
+	recv(*clientSocket, recvUserName, 64, 0);
 
-		while (true) {
-			iResult = recv(*clientSocket, recvBuf, 16, 0);
-			if (iResult > 0) {
-				std::cout << "Bytes received: " << iResult << std::endl;
-				std::cout << "receive data:" << recvBuf << std::endl;
+	recv(*clientSocket, recvPassword, 64, 0);
 
-				//usertoken 14 
-				//return ok
-				//code
-				//send to rc522
-				//char queStr[256];
-				//memset(queStr, 0, sizeof(queStr));
-				//char* str1 = (char*)"select cardid from userinfo where cardid=\"";
-				//char* str2 = (char*)"\"";
-				//mysqlDB.query(queStr, 1);
-				//cout << "num is :" << mysqlDB.fecthNum() << endl;
-				//MYSQL_ROW row = mysqlDB.fecthRow();
-				memset(securityCode, 0, sizeof(securityCode));
-				strcpy(securityCode, recvBuf);
+	std::string sql;
+	sql += "select username from userinfo where username=\"" + std::string(recvUserName) + "\"";
+	mysqlDB.query(sql.c_str(), 1);
 
-				std::cout << "security code sended" << std::endl;
-				char str[16] = "CD";
-				strcat(str, securityCode);
-				std::cout << str << std::endl;
-				iSendResult = send(*appClientSocketGlobal, str, strlen(str), 0);
-				if (iSendResult == SOCKET_ERROR) {
-					std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
-					closesocket(*clientSocket);
-				}
+	MYSQL_ROW row = mysqlDB.fecthRow();
 
-			}
-			else if (iSendResult == 0) {
-				std::cout << "Connection closing..." << std::endl;
-				break;
+	if (mysqlDB.fecthNum() !=1) {
+		const char* str = "AEunknow user!";
+		send(*appClientSocketGlobal, str, strlen(str), 0);
+		goto userlogin;
+	}
+	else if (mysqlDB.fecthNum() == 1) {
+		std::string sql;
+		sql += "SELECT password FROM userinfo WHERE username=\"" + std::string(recvPassword) + "\"";
+		mysqlDB.query(sql.c_str(), 1);
+		MYSQL_ROW row = mysqlDB.fecthRow();
+		if (mysqlDB.fecthNum() == 1&&row!=nullptr) {
+			if (std::strcmp(recvPassword, row[0])) {
+				const char* welcomeMessage = "AWloginok";
+				send(*appClientSocketGlobal, welcomeMessage, strlen(welcomeMessage), 0);
 			}
 			else {
-				std::cout << "recv failed with error :" << WSAGetLastError() << std::endl;
-				closesocket(*clientSocket);
-				break;
+				const char* welcomeMessage = "AEusernameorpasswordwrong";
+				send(*appClientSocketGlobal, welcomeMessage, strlen(welcomeMessage), 0);
 			}
-			memset(recvBuf, 0, sizeof(recvBuf));
 		}
+		else {
+			const char* str = "AEserver internal data base error";
+			send(*appClientSocketGlobal, str, strlen(str), 0);
+			goto userlogin;
+		}
+	}
+	else
+	{
+		const char* str = "AEserver internal data base error";
+		send(*appClientSocketGlobal, str, strlen(str), 0);
+		goto userlogin;
+	}
+
+	while (true) {
+		iResult = recv(*clientSocket, recvBuf, 16, 0);
+		if (iResult > 0) {
+			std::cout << "Bytes received: " << iResult << std::endl;
+			std::cout << "receive data:" << recvBuf << std::endl;
+
+			memset(securityCode, 0, sizeof(securityCode));
+			strcpy(securityCode, recvBuf);
+
+			std::cout << "security code sended" << std::endl;
+			char str[16] = "CD";
+			strcat(str, securityCode);
+			std::cout << str << std::endl;
+			iSendResult = send(*appClientSocketGlobal, str, strlen(str), 0);
+			if (iSendResult == SOCKET_ERROR) {
+				std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
+				closesocket(*clientSocket);
+			}
+
+		}
+		else if (iSendResult == 0) {
+			std::cout << "Connection closing..." << std::endl;
+			break;
+		}
+		else {
+			std::cout << "recv failed with error :" << WSAGetLastError() << std::endl;
+			closesocket(*clientSocket);
+			break;
+		}
+		memset(recvBuf, 0, sizeof(recvBuf));
+	}
 	closesocket(*clientSocket);
 	free(clientSocket);
-	return 0;
-}
-
-int appMessagePocess(char* RecvBuf, char* SendBuf)
-{
 	return 0;
 }
 
@@ -535,7 +564,7 @@ DWORD WINAPI mailSender(LPVOID lpParameter)
 		mail.SetSecurityType(USE_SSL);//使用SSL
 
 		mail.SetLogin("1175445708@qq.com");//登录账号
-		mail.SetPassword("pmsqfjrtnplihbbb");//密码
+		mail.SetPassword("zytsnzxleekzfjea");//密码
 
 		mail.SetSenderName("RC522Server");//发件人昵称
 		mail.SetSenderMail("1175445708@qq.com");//发件人邮箱
